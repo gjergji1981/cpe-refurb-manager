@@ -1,113 +1,124 @@
-# CPE Refurb Manager — Vercel Deployment
+# CPE Refurb Manager v2.0 — Vercel + Supabase
 
-## What's inside
-- React 18 + Vite frontend
-- SQLite-free — all data lives in React state (prototype mode)
-- Login screen with 3 roles: Admin, Stock Management, Refurbishment Partner
-- Works on desktop and mobile
+**Stack:** React 18 · Vite · Supabase (Postgres) · Vercel
 
 ---
 
-## Option A — Deploy via GitHub (recommended)
+## Quick Start (10 minutes total)
 
-### Step 1 — Push to GitHub
+### Step 1 — Set up Supabase
 
-1. Create a new repo on github.com (name it e.g. `cpe-refurb-manager`)
-2. In your terminal, from this folder:
+1. Go to [supabase.com](https://supabase.com) → **New project** (free)
+2. Choose a name, region closest to your users, and a database password
+3. Wait ~2 minutes for provisioning
+4. Go to **SQL Editor → New query**
+5. Paste the entire contents of **`supabase_schema.sql`** → click **Run**
+6. Go to **Project Settings → API** → copy:
+   - **Project URL** (e.g. `https://abcdefgh.supabase.co`)
+   - **anon public key** (long string starting with `eyJ…`)
 
+### Step 2 — Deploy to Vercel
+
+**Option A — Vercel CLI (fastest)**
 ```bash
+unzip cpe-refurb-vercel.zip
+cd cpe-refurb-vercel
 npm install
-git init
-git add .
-git commit -m "initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/cpe-refurb-manager.git
+npx vercel --prod
+```
+When prompted for environment variables, add both:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+**Option B — GitHub (auto-deploy on every push)**
+```bash
+git init && git add . && git commit -m "initial"
+git remote add origin https://github.com/YOU/cpe-refurb.git
 git push -u origin main
 ```
+Then: vercel.com → **Add New Project** → import repo → add env vars → **Deploy**
 
-### Step 2 — Deploy on Vercel
-
-1. Go to [vercel.com](https://vercel.com) and sign in (free account is fine)
-2. Click **Add New → Project**
-3. Import your GitHub repo `cpe-refurb-manager`
-4. Vercel auto-detects Vite — leave all settings as default
-5. Click **Deploy**
-6. Done — your app is live at `https://cpe-refurb-manager.vercel.app`
-
-Every `git push` to `main` automatically redeploys.
-
----
-
-## Option B — Deploy via Vercel CLI (no GitHub needed)
-
+### Step 3 — Test locally
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Install project dependencies
-npm install
-
-# Deploy (follow the prompts)
-vercel
-
-# Deploy to production
-vercel --prod
-```
-
----
-
-## Run locally
-
-```bash
-npm install
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
 npm run dev
-# Open http://localhost:5173
+# → http://localhost:5173
 ```
 
 ---
 
 ## Demo credentials
 
-| Role | Username | Password |
-|---|---|---|
-| 🛡️ Administrator | `admin` | `admin123` |
-| 📦 Stock Management | `stock` | `stock123` |
-| 🔧 Refurbishment Partner | `partner` | `partner123` |
+| Role | Username | Password | Access |
+|---|---|---|---|
+| 🛡️ Administrator | `admin` | `admin123` | All views + User Management |
+| 📦 Stock Management | `stock` | `stock123` | Dashboard, Intake, Stock, All Devices |
+| 🔧 Refurb Partner | `partner` | `partner123` | Partner Portal only |
+
+---
+
+## Full device lifecycle
+
+```
+Intake & Triage
+  → Register device, assign action (Refurb / Scrap / ECUS)
+  → Execute queue
+
+Refurbishment menu (internal)
+  → Devices held in queue
+  → Operator selects + dispatches to partner
+
+Partner Portal — Refurb View
+  → Partner marks Working / Not Working
+  → Executes outcome queue
+
+Refurbishment menu — Pending Confirmation
+  → Internal confirms or rejects partner outcomes
+  → Confirmed → stage "Confirmed"
+
+Partner Portal — Ready to Return
+  → Partner sees confirmed devices
+  → Selects + releases to transit → stage "In Transit"
+
+Stock → In Transit tab (Admin / Stock only)
+  → Confirm physical receipt
+  → Working → Ready (Stock)
+  → Not Working → Scrap
+```
 
 ---
 
 ## Project structure
 
 ```
-cpe-refurb-manager/
-├── index.html          # HTML entry point
-├── vite.config.js      # Vite configuration
-├── vercel.json         # SPA routing for Vercel
+cpe-refurb-vercel/
+├── index.html              # HTML entry point
+├── vite.config.js          # Vite config
+├── vercel.json             # SPA routing
 ├── package.json
-├── .gitignore
+├── .env.example            # → copy to .env.local
+├── supabase_schema.sql     # Run in Supabase SQL Editor
 └── src/
-    ├── main.jsx        # React root
-    └── App.jsx         # Full application (2900+ lines)
+    ├── main.jsx            # React root
+    ├── App.jsx             # Full application (~4350 lines)
+    ├── supabase.js         # Supabase client
+    └── db.js               # All database operations
 ```
 
 ---
 
-## Custom domain on Vercel
+## Custom domain
 
-1. In your Vercel project → **Settings → Domains**
-2. Add your domain (e.g. `cpe.yourdomain.com`)
-3. Add a CNAME record at your DNS provider pointing to `cname.vercel-dns.com`
-4. Vercel provisions SSL automatically
+1. Vercel project → **Settings → Domains** → Add domain
+2. Add a CNAME record at your DNS: `your-subdomain → cname.vercel-dns.com`
+3. SSL is automatic
 
 ---
 
-## Upgrading to a real database later
+## Security notes
 
-This prototype stores data in React state (resets on page refresh).
-When ready to persist data, the recommended path is:
-
-- **Supabase** — hosted Postgres + REST API, free tier generous
-- **PlanetScale** — serverless MySQL, works great with Vercel
-- Replace the `useState(SEED)` in `App.jsx` with `useEffect` API calls
-
-See `cpe-refurb-production-guide.md` for the full backend setup.
+- Passwords are stored plain text for this prototype
+- Before production: enable Supabase Row Level Security and hash passwords
+- The anon key is safe to expose in frontend code (it's public by design)
+- Keep your service role key secret — never put it in frontend code
